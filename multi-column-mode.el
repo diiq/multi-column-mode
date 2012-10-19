@@ -5,18 +5,10 @@
     (define-key map (kbd "M-[") 'multi-column-merge-right)
     map))
 
-(defvar multi-column-width nil)
-(make-local-variable 'multi-column-width)
-
 (defgroup multi-column nil
   "Minor mode for editing of two-column text."
   :prefix "multi-column-"
   :group 'frames)
-
-(defcustom multi-column-autoscroll t
-  "If non-nil, Emacs attempts to keep the two column's buffers aligned."
-  :type 'boolean
-  :group 'two-column)
 
 
 (defun multi-column-fill-goto-column (column)
@@ -41,6 +33,28 @@
     (set-buffer new) (insert rest)
     (set-buffer current) (insert-rectangle first)))
 
+(defun multi-column-next-column (window-walker)
+  (let ((this-window (funcall window-walker (selected-window))))
+    (while (not (buffer-local-value 'multi-column-mode 
+                                    (window-buffer this-window)))
+      (setq this-window (funcall window-walker this-window)))
+    this-window))
+
+
+(defun multi-column-map-lines (function)
+  (save-excursion
+    (goto-char (point-min))
+    (let ((col (list (funcall function))))
+      (while (eq 0 (forward-line))
+        (setq col (cons (funcall function) col)))
+      (reverse col))))
+
+(defun multi-column-longest-line ()
+  (apply 'max (multi-column-map-lines '(lambda () (end-of-line) (current-column)))))
+
+
+
+
 (defun multi-column-split ()
   "Split horizontally, at point, into two buffers."
   (interactive)
@@ -54,25 +68,6 @@
       (multi-column-shift-column width (current-buffer) new-buffer)
       (set-buffer new-buffer) (multi-column-mode)
       (setq multi-column-width 10000))))
-
-(defun multi-column-next-column (window-walker)
-  (let ((this-window (funcall window-walker (selected-window))))
-    (while (not (buffer-local-value 'multi-column-mode 
-                                    (window-buffer this-window)))
-      (setq this-window (funcall window-walker this-window)))
-    this-window))
-
-(defun multi-column-map-lines (function)
-  (save-excursion
-    (goto-char (point-min))
-    (let ((col (list (funcall function))))
-      (while (eq 0 (forward-line))
-        (setq col (cons (funcall function) col)))
-      (reverse col))))
-
-(defun multi-column-longest-line ()
-  (apply 'max (multi-column-map-lines '(lambda () (end-of-line) (current-column)))))
-
 
 (defun multi-column-merge (left-window right-window)
   (set-buffer (window-buffer right-window))
