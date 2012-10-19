@@ -1,0 +1,130 @@
+
+(defvar multi-column-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-|") 'multi-column-split)
+    (define-key map (kbd "M-]") 'multi-column-merge-left)
+    (define-key map (kbd "M-[") 'multi-column-merge-right)
+    map))
+
+(defvar multi-column-width nil)
+(make-local-variable 'multi-column-width)
+
+(defgroup multi-column nil
+  "Minor mode for editing of two-column text."
+  :prefix "multi-column-"
+  :group 'frames)
+
+(defcustom multi-column-autoscroll t
+  "If non-nil, Emacs attempts to keep the two column's buffers aligned."
+  :type 'boolean
+  :group 'two-column)
+
+;;;;; base functions ;;;;;
+
+;The next column will be in (next-window this-window) 
+; keep grabbing next window until you get to one where the 
+; multi-column mode is set. 
+; (window-buffer (next-window this-window))
+; (switch-to-buffer filename n+1)
+; (setq this-window (selected-window))
+; (setq next-window (split-window this-window width t)) ; t for horiz.
+
+;; function for setting up two-column minor mode in a buffer associated
+;; with the buffer pointed to by the marker other.
+(defun fill-goto-column (column)
+  (end-of-line)
+  (if (< (current-column) column)
+      (insert-char ?  (- column (current-column))))
+  (beginning-of-line)
+  (forward-char column))
+           
+
+(defun kill-column (column) 
+  (save-excursion 
+    (let ((end (progn (goto-char (point-max)) 
+                      (fill-goto-column column)
+                      (point)))
+          (start (point-min)))
+      (delete-extract-rectangle start end))))
+
+(defun shift-column (width current new)
+  (let ((first (kill-column width))
+        (rest  (delete-and-extract-region (point-min) (point-max))))
+    (set-buffer new) (insert rest)
+    (set-buffer current) (insert-rectangle first)))
+
+(defun multi-column-split ()
+  "Split horizontally, at point, into two buffers."
+  (interactive)
+  (save-excursion ; Won't work, have to roll own based on line number.
+    (let* ((width (current-column))
+           (new-buffer (generate-new-buffer "column"))
+           (new-column (split-window-horizontally (+ 4 width)))) ; t for horiz.
+      (set-fill-column width)
+      (setq multi-column-width width)
+      (set-window-buffer new-column new-buffer)
+      (shift-column width (current-buffer) new-buffer)
+      (set-buffer new-buffer) (multi-column-mode)
+      (setq multi-column-width 10000))))
+
+(defun multi-column-window-p (window)
+  (let ((restore (current-buffer)))
+    (set-buffer (window-buffer window))
+    (prog1 multi-column-mode
+      (set-buffer restore))))
+
+(defun next-column (window-walker)
+  (let ((this-window (funcall window-walker (selected-window))))
+    (while (not (buffer-local-value 'multi-column-mode 
+                                    (window-buffer this-window)))
+      (setq this-window (funcall window-walker this-window)))
+    this-window))
+
+(defun map-lines (function)
+  (save-excursion
+    (goto-char (point-min))
+    (let ((col (list (funcall function))))
+      (while (eq 0 (forward-line))
+        (setq col (cons (funcall function) col)))
+      (reverse col))))
+
+(defun longest-line ()
+  (apply 'max (map-lines '(lambda () (end-of-line) (current-column)))))
+
+
+(defun multi-column-merge (left-window right-window)
+  (set-buffer (window-buffer right-window))
+  (goto-char (point-max))
+  (fill-goto-column (longest-line))
+  (let ((right-rect (delete-extract-rectangle (point-min) (point-max))))
+    (set-buffer (window-buffer left-window))
+    (goto-char (point-min))
+    (fill-goto-column (longest-line))
+    (insert-rectangle right-rect)
+    (kill-buffer (window-buffer right-window))
+    (delete-window right-window)
+    (select-window left-window)
+    (setq multi-column-width (longest-line))))
+    
+(defun multi-column-merge-left ()
+  "Merge this column with the next multi-column-mode window to the left."
+  (interactive)
+  (multi-column-merge (next-column 'previous-window)
+                      (selected-window)))
+
+(defun multi-column-merge-right ()
+  "Merge this column with the next multi-column-mode window to the right."
+  (interactive)
+  (multi-column-merge (selected-window)
+                      (next-column 'next-window)))
+
+(define-minor-mode multi-column-mode
+  "Toggle multi-column mode. "
+  ;; The initial value.
+  nil
+  ;; The indicator for the mode line.
+  " Multi-col"
+  multi-column-map
+)
+
+
