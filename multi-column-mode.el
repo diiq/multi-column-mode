@@ -1,4 +1,3 @@
-
 (defvar multi-column-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-|") 'multi-column-split)
@@ -19,18 +18,7 @@
   :type 'boolean
   :group 'two-column)
 
-;;;;; base functions ;;;;;
 
-;The next column will be in (next-window this-window) 
-; keep grabbing next window until you get to one where the 
-; multi-column mode is set. 
-; (window-buffer (next-window this-window))
-; (switch-to-buffer filename n+1)
-; (setq this-window (selected-window))
-; (setq next-window (split-window this-window width t)) ; t for horiz.
-
-;; function for setting up two-column minor mode in a buffer associated
-;; with the buffer pointed to by the marker other.
 (defun multi-column-fill-goto-column (column)
   (end-of-line)
   (if (< (current-column) column)
@@ -118,7 +106,6 @@
   nil
   ;; The indicator for the mode line.
   " Multi-col"
-  multi-column-map
-  )
+  multi-column-map)
 
 
