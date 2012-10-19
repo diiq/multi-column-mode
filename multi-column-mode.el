@@ -47,7 +47,7 @@
   (save-excursion ; Won't work, have to roll own based on line number.
     (let* ((width (current-column))
            (new-buffer (generate-new-buffer "column"))
-           (new-column (split-window-horizontally (+ 4 width)))) ; t for horiz.
+           (new-column (split-window-horizontally (+ 4 width))))
       (set-fill-column width)
       (setq multi-column-width width)
       (set-window-buffer new-column new-buffer)
