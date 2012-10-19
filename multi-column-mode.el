@@ -12,6 +12,7 @@
 
 
 (defun multi-column-fill-goto-column (column)
+  "Goto column, and fill with spaces if the line is too short."
   (end-of-line)
   (if (< (current-column) column)
       (insert-char ?  (- column (current-column))))
@@ -19,21 +20,26 @@
   (forward-char column))
            
 
-(defun multi-column-kill-column (column) 
+(defun multi-column-kill-column (width) 
+  "Delete and return the first column of width width in the buffer."
   (save-excursion 
     (let ((end (progn (goto-char (point-max)) 
-                      (multi-column-fill-goto-column column)
+                      (multi-column-fill-goto-column width)
                       (point)))
           (start (point-min)))
       (delete-extract-rectangle start end))))
 
-(defun multi-column-shift-column (width current new)
+(defun multi-column-shift-column (width left right)
+  "Where right and left are buffers, keep the first column from
+left of width width in left, and shift the rest to right."
   (let ((first (multi-column-kill-column width))
         (rest  (delete-and-extract-region (point-min) (point-max))))
-    (set-buffer new) (insert rest)
-    (set-buffer current) (insert-rectangle first)))
+    (set-buffer right) (insert rest)
+    (set-buffer left) (insert-rectangle first)))
 
 (defun multi-column-next-column (window-walker)
+  "Find the next window which is in multi-column-mode; use
+window-walked for the order of windows to examine."
   (let ((this-window (funcall window-walker (selected-window))))
     (while (not (buffer-local-value 'multi-column-mode 
                                     (window-buffer this-window)))
@@ -42,6 +48,7 @@
 
 
 (defun multi-column-map-lines (function)
+  "Map a function across every line in the buffer. Surely this exists?"
   (save-excursion
     (goto-char (point-min))
     (let ((col (list (funcall function))))
@@ -50,6 +57,7 @@
       (reverse col))))
 
 (defun multi-column-longest-line ()
+  "Returns the length of the longest line in the buffer."
   (apply 'max (multi-column-map-lines '(lambda () (end-of-line) (current-column)))))
 
 
@@ -70,6 +78,7 @@
       (setq multi-column-width 10000))))
 
 (defun multi-column-merge (left-window right-window)
+  "Merge two windows into one, splicing the buffers horizontally."
   (set-buffer (window-buffer right-window))
   (goto-char (point-max))
   (multi-column-fill-goto-column (multi-column-longest-line))
@@ -96,7 +105,7 @@
                       (multi-column-next-column 'next-window)))
 
 (define-minor-mode multi-column-mode
-  "Toggle multi-column mode. "
+  "Toggle multi-column mode."
   ;; The initial value.
   nil
   ;; The indicator for the mode line.
