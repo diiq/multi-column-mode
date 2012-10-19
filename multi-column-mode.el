@@ -31,7 +31,7 @@
 
 ;; function for setting up two-column minor mode in a buffer associated
 ;; with the buffer pointed to by the marker other.
-(defun fill-goto-column (column)
+(defun multi-column-fill-goto-column (column)
   (end-of-line)
   (if (< (current-column) column)
       (insert-char ?  (- column (current-column))))
@@ -39,16 +39,16 @@
   (forward-char column))
            
 
-(defun kill-column (column) 
+(defun multi-column-kill-column (column) 
   (save-excursion 
     (let ((end (progn (goto-char (point-max)) 
-                      (fill-goto-column column)
+                      (multi-column-fill-goto-column column)
                       (point)))
           (start (point-min)))
       (delete-extract-rectangle start end))))
 
-(defun shift-column (width current new)
-  (let ((first (kill-column width))
+(defun multi-column-shift-column (width current new)
+  (let ((first (multi-column-kill-column width))
         (rest  (delete-and-extract-region (point-min) (point-max))))
     (set-buffer new) (insert rest)
     (set-buffer current) (insert-rectangle first)))
@@ -63,24 +63,18 @@
       (set-fill-column width)
       (setq multi-column-width width)
       (set-window-buffer new-column new-buffer)
-      (shift-column width (current-buffer) new-buffer)
+      (multi-column-shift-column width (current-buffer) new-buffer)
       (set-buffer new-buffer) (multi-column-mode)
       (setq multi-column-width 10000))))
 
-(defun multi-column-window-p (window)
-  (let ((restore (current-buffer)))
-    (set-buffer (window-buffer window))
-    (prog1 multi-column-mode
-      (set-buffer restore))))
-
-(defun next-column (window-walker)
+(defun multi-column-next-column (window-walker)
   (let ((this-window (funcall window-walker (selected-window))))
     (while (not (buffer-local-value 'multi-column-mode 
                                     (window-buffer this-window)))
       (setq this-window (funcall window-walker this-window)))
     this-window))
 
-(defun map-lines (function)
+(defun multi-column-map-lines (function)
   (save-excursion
     (goto-char (point-min))
     (let ((col (list (funcall function))))
@@ -88,35 +82,35 @@
         (setq col (cons (funcall function) col)))
       (reverse col))))
 
-(defun longest-line ()
-  (apply 'max (map-lines '(lambda () (end-of-line) (current-column)))))
+(defun multi-column-longest-line ()
+  (apply 'max (multi-column-map-lines '(lambda () (end-of-line) (current-column)))))
 
 
 (defun multi-column-merge (left-window right-window)
   (set-buffer (window-buffer right-window))
   (goto-char (point-max))
-  (fill-goto-column (longest-line))
+  (multi-column-fill-goto-column (multi-column-longest-line))
   (let ((right-rect (delete-extract-rectangle (point-min) (point-max))))
     (set-buffer (window-buffer left-window))
     (goto-char (point-min))
-    (fill-goto-column (longest-line))
+    (multi-column-fill-goto-column (multi-column-longest-line))
     (insert-rectangle right-rect)
     (kill-buffer (window-buffer right-window))
     (delete-window right-window)
     (select-window left-window)
-    (setq multi-column-width (longest-line))))
+    (setq multi-column-width (multi-column-longest-line))))
     
 (defun multi-column-merge-left ()
   "Merge this column with the next multi-column-mode window to the left."
   (interactive)
-  (multi-column-merge (next-column 'previous-window)
+  (multi-column-merge (multi-column-next-column 'previous-window)
                       (selected-window)))
 
 (defun multi-column-merge-right ()
   "Merge this column with the next multi-column-mode window to the right."
   (interactive)
   (multi-column-merge (selected-window)
-                      (next-column 'next-window)))
+                      (multi-column-next-column 'next-window)))
 
 (define-minor-mode multi-column-mode
   "Toggle multi-column mode. "
@@ -125,6 +119,6 @@
   ;; The indicator for the mode line.
   " Multi-col"
   multi-column-map
-)
+  )
 
 
