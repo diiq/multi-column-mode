@@ -1,3 +1,11 @@
+;;; multi-column-mode.el --- Multi-column editing.
+
+;; Author: Sam Bleckley <s@diiq.org>
+;; Version: 0.1
+;; Keywords: columns
+
+;; Licence: WTFPL <http://sam.zoy.org/wtfpl/>
+
 (defvar multi-column-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-|") 'multi-column-split)
@@ -113,3 +121,4 @@ window-walked for the order of windows to examine."
   multi-column-map)
 
 
+(provide 'multi-column-mode)
