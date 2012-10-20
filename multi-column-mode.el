@@ -22,6 +22,8 @@
 (defcustom multi-column-use-gap 't "Use a custom column spacer rather than simply splicing the buffers.")
 (defcustom multi-column-gap "          " "The spacer between cols")
 (defvar multi-column-width -1)
+(defvar multi-column-my-left nil)
+(defvar multi-column-my-right nil)
 
 
 (defun multi-column-fill-goto-column (column)
@@ -53,10 +55,10 @@ left of width width in left, and shift the rest to right."
 (defun multi-column-next-column (window-walker)
   "Find the next window which is in multi-column-mode; use
 window-walked for the order of windows to examine."
-  (let ((this-window (funcall window-walker (selected-window))))
+  (let ((this-window (funcall window-walker (selected-window) 5 5)))
     (while (not (buffer-local-value 'multi-column-mode 
                                     (window-buffer this-window)))
-      (setq this-window (funcall window-walker this-window)))
+      (setq this-window (funcall window-walker this-window 5 5)))
     this-window))
 
 (defun multi-column-map-lines (function)
@@ -74,28 +76,35 @@ window-walked for the order of windows to examine."
                '(lambda () (end-of-line) (current-column)))))
 
 
+(defun multi-column-start-of-gap ()
+  "Returns the column on which the multi-column-gap begins, or nil."
+    (save-excursion
+      (forward-char (length multi-column-gap))
+      (if (search-backward multi-column-gap 
+                           (- (point) (* 2 (length multi-column-gap))) 
+                           't)
+          (current-column))))
+
 (defun multi-column-end-break (direction)
   "Finds the vertical end of a break between horizontal columns,
 if the break consists of identical characters."
+;gross.
   (save-excursion
-    (forward-char (length multi-column-gap))
-    (if (search-backward multi-column-gap 
-                         (- (point) (* 2 (length multi-column-gap))) 
-                         't)
         (let ((test 't)
-              (col (current-column)))
+              (col (multi-column-start-of-gap)))
+          (beginning-of-line)
           (while (and test
-                  (or (< (line-end-position)
-                         (+ col (line-beginning-position)))
-                      (search-backward 
-                       multi-column-gap 
-                       (+ col (line-beginning-position))
-                       (+ col (line-beginning-position)
-                          (length multi-column-gap)) 't)))
+                      (or (<= (line-end-position)
+                             (+ col (line-beginning-position)))
+                          (progn
+                            (forward-char col) 
+                          (search-forward multi-column-gap 
+                                          (+ (point)
+                                             (length multi-column-gap))
+                                          't))))
             (setq test (eq 0 (forward-line direction))))
           (if (and test (> 0 direction)) (forward-line))
-          (line-beginning-position)
-          't))))
+          (line-beginning-position))))
 
 (defun multi-column-narrow ()
   "Narrows a buffer to only those lines which are split into
@@ -135,16 +144,23 @@ is a column-number (current-column) style, at which the gap starts."
   (save-excursion ; Won't work, have to roll own based on line number.
     (let* ((width (current-column))
            (new-buffer (generate-new-buffer "column"))
-           (new-column (split-window-horizontally (+ (length multi-column-gap) width))))
+           (new-column (split-window-horizontally 
+                        (+ (length multi-column-gap) width)))
+           (old-column (selected-window)))
+      ; This window (left column)
       (set (make-local-variable 'multi-column-width) width)
+      (set (make-local-variable 'multi-column-my-right) new-column)
       (set-fill-column width)
-      (setq multi-column-width width)
+
+      ; That window (right column)
       (set-window-buffer new-column new-buffer)
       (multi-column-shift-column width (current-buffer) new-buffer)
       (delete-trailing-whitespace)
       (set-buffer new-buffer) (multi-column-mode)
       (set (make-local-variable 'multi-column-width)
-           (multi-column-longest-line)))))
+           (multi-column-longest-line))
+      (set-fill-column multi-column-width)
+      (set (make-local-variable 'multi-column-my-left) old-column))))
 
 (defun multi-column-merge (left-window right-window)
   "Merge two windows into one, splicing the buffers horizontally."
@@ -186,14 +202,19 @@ is a column-number (current-column) style, at which the gap starts."
 (defun multi-column-merge-left ()
   "Merge this column with the next multi-column-mode window to the left."
   (interactive)
-  (multi-column-merge (multi-column-next-column 'previous-window)
-                      (selected-window)))
+  (let ((next (multi-column-next-column 'previous-window)))
+    (if (or (eq next multi-column-my-left)
+            (y-or-n-p "I didn't have that there before. Are you sure? "))
+        (multi-column-merge next (selected-window)))))
+
 
 (defun multi-column-merge-right ()
   "Merge this column with the next multi-column-mode window to the right."
   (interactive)
-  (multi-column-merge (selected-window)
-                      (multi-column-next-column 'next-window)))
+  (let ((next (multi-column-next-column 'next-window)))
+    (if (or (eq next multi-column-my-right)
+            (y-or-n-p "I didn't have that there before. Are you sure? "))
+        (multi-column-merge (selected-window) next))))
 
 (defun multi-column-set-width (width)
   (interactive (list (read-number "Set column width" 
