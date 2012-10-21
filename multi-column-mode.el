@@ -149,18 +149,22 @@ is a column-number (current-column) style, at which the gap starts."
            (old-column (selected-window)))
       ; This window (left column)
       (set (make-local-variable 'multi-column-width) width)
-      (set (make-local-variable 'multi-column-my-right) new-column)
+      (set (make-local-variable 'multi-column-my-right) new-buffer)
       (set-fill-column width)
 
-      ; That window (right column)
+      ; Re: that window (right column)
       (set-window-buffer new-column new-buffer)
       (multi-column-shift-column width (current-buffer) new-buffer)
       (delete-trailing-whitespace)
-      (set-buffer new-buffer) (multi-column-mode)
+
+      ; In that window
+      (set-buffer new-buffer) 
+
+      (multi-column-mode)
       (set (make-local-variable 'multi-column-width)
            (multi-column-longest-line))
       (set-fill-column multi-column-width)
-      (set (make-local-variable 'multi-column-my-left) old-column))))
+      (set (make-local-variable 'multi-column-my-left) (old-buffer))))
 
 (defun multi-column-merge (left-window right-window)
   "Merge two windows into one, splicing the buffers horizontally."
@@ -203,7 +207,7 @@ is a column-number (current-column) style, at which the gap starts."
   "Merge this column with the next multi-column-mode window to the left."
   (interactive)
   (let ((next (multi-column-next-column 'previous-window)))
-    (if (or (eq next multi-column-my-left)
+    (if (or (eq (window-buffer next) multi-column-my-left)
             (y-or-n-p "I didn't have that there before. Are you sure? "))
         (multi-column-merge next (selected-window)))))
 
@@ -212,18 +216,24 @@ is a column-number (current-column) style, at which the gap starts."
   "Merge this column with the next multi-column-mode window to the right."
   (interactive)
   (let ((next (multi-column-next-column 'next-window)))
-    (if (or (eq next multi-column-my-right)
+    (if (or (eq (window-buffer next) multi-column-my-right)
             (y-or-n-p "I didn't have that there before. Are you sure? "))
         (multi-column-merge (selected-window) next))))
 
 (defun multi-column-set-width (width)
-  (interactive (list (read-number "Set column width" 
+  (interactive (list (read-number "Set column width:" 
                             (current-column))))
   (set (make-local-variable 'multi-column-width) width)
   (set-fill-column width))
 
 (defun multi-column-set-gap (gap)
-  (interactive (list (read-string "Set gap" "          ")))
+  (interactive (list (let ((default (if (use-region-p)
+                                              (buffer-substring
+                                               (point)
+                                               (mark))
+                                            "          ")))
+                       (read-string (concat "Set gap (default \"" default "\"):")
+                                    nil nil default))))
   (set 'multi-column-gap gap))
 
 (define-minor-mode multi-column-mode
